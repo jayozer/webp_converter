@@ -14,6 +14,9 @@ def main():
     st.write('WEBP is a modern image format that provides superior lossless and lossy compression for images on the web. Using WebP, webmasters and web developers can create smaller, richer images that make the web faster.')
 
 
+    # Quality slider
+    quality = st.slider('Select WEBP quality (0-100)', min_value=0, max_value=100, value=80)
+
     # Multiple file uploader
     uploaded_files = st.file_uploader("Choose image files", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
 
@@ -27,7 +30,7 @@ def main():
         # Convert and save the image in WEBP format
         with Image.open(uploaded_file) as image:
             byte_stream = io.BytesIO()
-            image.save(byte_stream, format='WEBP')
+            image.save(byte_stream, format='WEBP', quality=quality)
             byte_stream.seek(0)
             b64 = base64.b64encode(byte_stream.getvalue()).decode()
             file_details["File"].append(b64)
