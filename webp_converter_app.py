@@ -8,7 +8,7 @@ import streamlit as st
 def main():
     st.title('Instant WEBP Converter')
     st.write('This app allows you to convert image files (PNG, JPG, JPEG) to WEBP format instantly.') 
-    st.write('Upload multiple files and download cpnverted ones you want with a single click.')
+    st.write('Upload multiple files and download converted ones you want with a single click.')
     #description
     st.write('**What is WEBP and why use it?**')
     st.write('WEBP is a modern image format that provides superior lossless and lossy compression for images on the web. Using WebP, webmasters and web developers can create smaller, richer images that make the web faster.')
