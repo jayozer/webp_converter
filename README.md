@@ -1,7 +1,7 @@
 # Instant WEBP Converter
 Ready to start converting your images? **Click the button to launch the Instant WEBP Converter Streamlit App:**
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://instant-webp-converter.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]([https://instant-webp-converter.streamlit.app/](https://media-converter.streamlit.app/))
 
 **Instant WEBP Converter** is a Streamlit app allowing you to quickly convert your images to the WEBP format.
 The main advantage of this app over online converters is that it keeps your images private.
