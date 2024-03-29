@@ -23,3 +23,13 @@ This reduction in size is crucial for improving web page speeds, making Instant 
 Using Instant WEBP Converter is easy. Upload your images using the file uploader, and the app will automatically convert them to the WEBP format.
 You can then download the converted images directly from the app.
 
+# Instant Video Compressor
+
+The Instant Video Compressor is a web application that allows users to compress MP4 video files instantly. Users can upload a video file, choose the desired quality, and download the compressed version with a single click.
+
+## Features
+
+- Compress MP4 video files instantly
+- Choose from various quality options
+- Download the compressed video file
+
