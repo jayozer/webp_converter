@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "pages/api/convert.ts": {
+      "maxDuration": 30
+    }
+  }
+}

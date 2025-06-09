@@ -56,3 +56,6 @@ def webp_converter():
             filename = df["ConvertedFileName"][i]
             href = f'<a href="data:file/webp;base64,{b64}" download="{filename}">Download {filename}</a>'
             st.markdown(href, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    webp_converter()
