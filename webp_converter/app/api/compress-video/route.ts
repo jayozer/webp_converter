@@ -8,7 +8,7 @@ import { promisify } from 'util'
 const execAsync = promisify(exec)
 
 export const runtime = 'nodejs'
-export const maxDuration = 300 // 5 minutes for video processing
+export const maxDuration = 60 // 1 minute for video processing
 
 interface VideoMetadata {
   duration: number
