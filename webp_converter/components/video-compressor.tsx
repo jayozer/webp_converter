@@ -98,7 +98,6 @@ export default function VideoCompressor() {
   const [maintainResolution, setMaintainResolution] = useState(true)
   const [removeAudio, setRemoveAudio] = useState(false)
   const [targetFormat, setTargetFormat] = useState("mp4")
-  const [useHardwareAcceleration, setUseHardwareAcceleration] = useState(true)
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -177,7 +176,6 @@ export default function VideoCompressor() {
       formData.append('format', targetFormat)
       formData.append('maintainResolution', maintainResolution.toString())
       formData.append('removeAudio', removeAudio.toString())
-      formData.append('useHardwareAcceleration', useHardwareAcceleration.toString())
 
       try {
         // Simulate progress updates
@@ -388,24 +386,6 @@ export default function VideoCompressor() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="hw-accel" className="font-normal cursor-pointer flex items-center gap-2">
-                    Hardware Acceleration
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Use GPU acceleration for faster compression when available. May not work on all systems.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </Label>
-                  <Switch
-                    id="hw-accel"
-                    checked={useHardwareAcceleration}
-                    onCheckedChange={setUseHardwareAcceleration}
-                  />
-                </div>
               </div>
             </div>
 
