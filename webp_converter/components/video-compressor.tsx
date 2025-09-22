@@ -176,7 +176,7 @@ export default function VideoCompressor() {
     const ffmpeg = new FFmpeg()
 
     // Set up progress listener
-    ffmpeg.on('progress', ({ progress, time }: { progress: number; time: number }) => {
+    ffmpeg.on('progress', ({ progress }: { progress: number }) => {
       // Update progress for the file being compressed
       setFiles((prev) =>
         prev.map((f) =>
