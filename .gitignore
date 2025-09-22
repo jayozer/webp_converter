@@ -1,0 +1,7 @@
+# Test files (private content)
+test-images/
+test-videos/
+webp_converter/test_video.mp4
+
+# OS files
+.DS_Store
