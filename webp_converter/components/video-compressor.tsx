@@ -262,7 +262,9 @@ export default function VideoCompressor() {
 
           // Read output file
           const outputData = await ffmpeg.readFile(outputName)
-          const blob = new Blob([outputData], { type: `video/${targetFormat}` })
+          // Convert FileData to a format compatible with Blob constructor
+          // FFmpeg.wasm returns a Uint8Array, but TypeScript needs proper typing
+          const blob = new Blob([outputData as BlobPart], { type: `video/${targetFormat}` })
 
           // Record results
           setFiles((prev) =>
