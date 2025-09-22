@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
+import type { FFmpeg } from '@ffmpeg/ffmpeg'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
@@ -159,69 +160,145 @@ export default function VideoCompressor() {
     return Math.floor(originalSize * reductionFactor * 0.8) // 0.8 for additional compression efficiency
   }
 
+  /* ------------------------------------------------------------------ */
+  /* FFmpeg (WebAssembly) setup                                         */
+  /* ------------------------------------------------------------------ */
+
+  // We lazily instantiate FFmpeg so the heavy wasm code only loads when
+  // compression is requested. The instance is reused across files.
+  interface FFmpegContext {
+    ffmpeg: any // using createFFmpeg returns object with typed methods but generic for now
+  }
+
+  const ffmpegRef = useRef<FFmpegContext | null>(null)
+
+  const loadFFmpeg = async () => {
+    if (ffmpegRef.current) return ffmpegRef.current
+
+    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg')
+
+    const coreVersion = '0.11.0'
+    const ffmpeg = createFFmpeg({
+      log: true,
+      corePath: `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${coreVersion}/dist/ffmpeg-core.js`,
+    })
+
+    ffmpeg.setProgress(({ ratio }: { ratio: number }) => {
+      // global progress update (will be refined per file below)
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.status === 'compressing' && typeof f.progress === 'number'
+            ? { ...f, progress: Math.min(99, Math.round(ratio * 100)) }
+            : f
+        )
+      )
+    })
+
+    await ffmpeg.load()
+
+    ffmpegRef.current = { ffmpeg }
+    return ffmpegRef.current
+  }
+
   const handleCompress = async () => {
     if (files.length === 0) return
     setIsCompressing(true)
 
     const bitrate = useCustomBitrate ? customBitrate : selectedPreset.bitrate
 
-    for (const file of files) {
-      setFiles(prev => prev.map(f => 
-        f.id === file.id ? { ...f, status: "compressing" as const, progress: 0 } : f
-      ))
+    const { ffmpeg, fetchFile } = await loadFFmpeg()
 
-      const formData = new FormData()
-      formData.append('video', file.file)
-      formData.append('bitrate', bitrate.toString())
-      formData.append('format', targetFormat)
-      formData.append('maintainResolution', maintainResolution.toString())
-      formData.append('removeAudio', removeAudio.toString())
+    for (const file of files) {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === file.id ? { ...f, status: 'compressing' as const, progress: 0 } : f
+        )
+      )
+
+      const inputName = 'input'
+      const outputName = `output.${targetFormat}`
+
+      // Reset progress listener for each file
+      const progressHandler = ({ progress }: { progress: number }) => {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === file.id && f.status === 'compressing'
+              ? { ...f, progress: Math.round(progress * 100) }
+              : f
+          )
+        )
+      }
+
+      ffmpeg.on('progress', progressHandler)
 
       try {
-        // Simulate progress updates
-        const progressInterval = setInterval(() => {
-          setFiles(prev => prev.map(f => {
-            if (f.id === file.id && f.status === "compressing") {
-              const newProgress = Math.min((f.progress || 0) + 10, 90)
-              return { ...f, progress: newProgress }
-            }
-            return f
-          }))
-        }, 500)
+        // Write file to FS
+        await ffmpeg.writeFile(inputName, await fetchFile(file.file))
 
-        const response = await fetch('/api/compress-video', {
-          method: 'POST',
-          body: formData,
-        })
+        // Build ffmpeg CLI args
+        const args: string[] = ['-i', inputName]
 
-        clearInterval(progressInterval)
-
-        if (!response.ok) {
-          throw new Error('Compression failed')
+        // codec selection
+        switch (targetFormat) {
+          case 'webm':
+            args.push('-c:v', 'libvpx-vp9')
+            break
+          case 'mov':
+            args.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p')
+            break
+          default:
+            args.push('-c:v', 'libx264')
+            break
         }
 
-        const data = await response.json()
-        
-        setFiles(prev => prev.map(f => {
-          if (f.id === file.id) {
-            return {
-              ...f,
-              compressedSize: data.compressedSize,
-              compressedBlob: new Blob([Uint8Array.from(atob(data.videoData), c => c.charCodeAt(0))], { type: `video/${targetFormat}` }),
-              reduction: Math.round(((f.originalSize - data.compressedSize) / f.originalSize) * 100),
-              status: "completed" as const,
-              progress: 100,
-              duration: data.duration,
-              resolution: data.resolution,
+        args.push('-b:v', `${bitrate}k`)
+
+        if (!maintainResolution) {
+          args.push('-vf', 'scale=-2:720')
+        }
+
+        if (removeAudio) {
+          args.push('-an')
+        } else {
+          args.push('-c:a', 'aac', '-b:a', '128k')
+        }
+
+        args.push('-preset', 'medium', '-crf', '23', '-movflags', '+faststart', outputName)
+
+        await ffmpeg.exec(args)
+
+        const outputData = await ffmpeg.readFile(outputName)
+        const blob = new Blob([outputData], { type: `video/${targetFormat}` })
+
+        // Record results
+        setFiles((prev) =>
+          prev.map((f) => {
+            if (f.id === file.id) {
+              return {
+                ...f,
+                compressedSize: blob.size,
+                compressedBlob: blob,
+                reduction: Math.round(((f.originalSize - blob.size) / f.originalSize) * 100),
+                status: 'completed' as const,
+                progress: 100,
+              }
             }
-          }
-          return f
-        }))
+            return f
+          })
+        )
+
+        // Clean up
+        await ffmpeg.deleteFile(inputName)
+        await ffmpeg.deleteFile(outputName)
       } catch (error) {
         console.error('Compression error:', error)
-        setFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, status: "failed" as const, error: "Compression failed", progress: 0 } : f
-        ))
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === file.id ? { ...f, status: 'failed' as const, error: 'Compression failed', progress: 0 } : f
+          )
+        )
+      } finally {
+        ffmpeg.off('progress', progressHandler)
       }
     }
 
