@@ -79,48 +79,110 @@ export default function ImageConverter() {
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Canvas API for client-side image processing with native WebP     */
+  /* ------------------------------------------------------------------ */
+
+  const convertImageToWebP = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'))
+        return
+      }
+
+      img.onload = () => {
+        try {
+          let { width, height } = img
+          const maxDimension = 2048
+
+          // Auto-resize if enabled and image is too large
+          if (autoResize && (width > maxDimension || height > maxDimension)) {
+            const scale = maxDimension / Math.max(width, height)
+            width = Math.round(width * scale)
+            height = Math.round(height * scale)
+          }
+
+          canvas.width = width
+          canvas.height = height
+
+          // Draw image to canvas
+          ctx.drawImage(img, 0, 0, width, height)
+
+          // Convert to WebP with quality settings
+          // Note: Browser's native WebP encoder automatically preserves transparency
+          // Lossless mode uses quality 1.0, lossy uses 0-1 scale
+          const webpQuality = losslessConversion ? 1.0 : quality / 100
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob)
+              } else {
+                reject(new Error('Failed to convert to WebP'))
+              }
+            },
+            'image/webp',
+            webpQuality
+          )
+
+          URL.revokeObjectURL(img.src)
+        } catch (error) {
+          reject(error)
+        }
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src)
+        reject(new Error('Failed to load image'))
+      }
+
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const handleConvert = async () => {
     if (files.length === 0) return
     setIsConverting(true)
 
-    const formData = new FormData()
-    formData.append('quality', quality.toString())
-    formData.append('lossless', losslessConversion.toString())
-    formData.append('preserveMetadata', preserveMetadata.toString())
-    formData.append('preserveTransparency', preserveTransparency.toString())
-    formData.append('autoResize', autoResize.toString())
-
-    files.forEach(fileItem => {
-      formData.append('files', fileItem.file)
-    })
-
     try {
-      const response = await fetch('/api/convert', {
-        method: 'POST',
-        body: formData,
-      })
+      // Process all images in parallel
+      const results = await Promise.all(
+        files.map(async (fileItem) => {
+          try {
+            // Mark file as converting
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileItem.id ? { ...f, status: 'converting' as const } : f
+              )
+            )
 
-      if (!response.ok) {
-        throw new Error('Conversion failed')
-      }
+            // Convert to WebP using Canvas API
+            const webpBlob = await convertImageToWebP(fileItem.file)
 
-      const data = await response.json()
-      
-      const updatedFiles = files.map((file, index) => {
-        const result = data.results[index]
-        if (result) {
-          return {
-            ...file,
-            webpSize: result.webpSize,
-            webpBlob: new Blob([Uint8Array.from(atob(result.webpData), c => c.charCodeAt(0))], { type: 'image/webp' }),
-            reduction: Math.round(((file.originalSize - result.webpSize) / file.originalSize) * 100),
-            status: "completed" as const,
+            return {
+              ...fileItem,
+              webpSize: webpBlob.size,
+              webpBlob,
+              reduction: Math.round(((fileItem.originalSize - webpBlob.size) / fileItem.originalSize) * 100),
+              status: 'completed' as const,
+            }
+          } catch (error) {
+            console.error(`Error converting ${fileItem.name}:`, error)
+            return {
+              ...fileItem,
+              status: 'failed' as const,
+              error: 'Conversion failed',
+            }
           }
-        }
-        return { ...file, status: "failed" as const, error: "Conversion failed" }
-      })
+        })
+      )
 
-      setFiles(updatedFiles)
+      // Update all files with results
+      setFiles(results)
     } catch (error) {
       console.error('Conversion error:', error)
       setFiles(files.map(f => ({ ...f, status: "failed" as const, error: "Conversion failed" })))
@@ -247,7 +309,7 @@ export default function ImageConverter() {
                         <Info className="h-4 w-4 text-gray-400 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p>Keeps EXIF data, color profiles, and other metadata from the original image. This includes camera settings, location data, copyright info, etc. Disable to remove all metadata for smaller files and privacy.</p>
+                        <p>Note: Metadata preservation is limited in browser-based processing. WebAssembly codecs may not preserve all EXIF data, camera settings, or location information. For complete metadata preservation, use desktop tools.</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
@@ -255,6 +317,7 @@ export default function ImageConverter() {
                     id="metadata"
                     checked={preserveMetadata}
                     onCheckedChange={setPreserveMetadata}
+                    disabled
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -325,9 +388,9 @@ export default function ImageConverter() {
             <div className="w-full">
               <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
                 <Info className="h-4 w-4" />
-                WebP can reduce file sizes by up to 80%
+                100% private - processed in your browser. WebP can reduce file sizes by up to 80%
               </p>
-              <Button 
+              <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 onClick={handleConvert}
                 disabled={files.length === 0 || isConverting}

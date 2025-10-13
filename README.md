@@ -4,18 +4,21 @@
 
 **Optimize images and compress videos directly in your browser - no uploads, complete privacy.**
 
-A modern Next.js application for converting images to WebP format and compressing videos using browser-based FFmpeg. Built with privacy-first architecture where video processing happens entirely in your browser.
+A modern Next.js application for converting images to WebP format and compressing videos. Built with 100% privacy-first architecture where ALL processing (images and videos) happens entirely in your browser using native Canvas API and FFmpeg.wasm.
 
 ---
 
 ## ✨ Why This App is Different
 
-### 🔒 **Privacy-First Video Compression**
-Your videos **never leave your computer**. Using WebAssembly-powered FFmpeg, all video compression happens directly in your browser. No server uploads, no cloud processing, complete privacy.
+### 🔒 **100% Privacy-First Processing**
+Your images AND videos **never leave your computer**. All processing happens directly in your browser:
+- **Images**: Native Canvas API with built-in WebP encoding
+- **Videos**: FFmpeg.wasm (WebAssembly)
+No server uploads, no cloud processing, complete privacy guaranteed.
 
 ### ⚡ **Modern Web Technologies**
-- **FFmpeg.wasm**: Full-featured video processing running as WebAssembly in your browser
-- **Sharp**: Lightning-fast server-side image optimization
+- **Canvas API**: Browser-native image processing with WebP support
+- **FFmpeg.wasm**: Full-featured video processing running as WebAssembly
 - **Next.js 15 + React 19**: Latest web framework with advanced performance optimizations
 
 ### 🎯 **Professional Results**
@@ -42,24 +45,25 @@ Your videos **never leave your computer**. Using WebAssembly-powered FFmpeg, all
 - **Batch Processing**: Compress multiple videos simultaneously
 - **No Size Limits**: Process large videos without server timeouts
 
-### 🖼️ Image Converter (Server-Optimized)
-**Powered by Sharp - High-performance image processing**
+### 🖼️ Image Converter (Browser-Based)
+**Powered by Native Canvas API - 100% client-side processing**
 
+- **Complete Privacy**: Images never uploaded to servers - all processing happens in your browser
 - **WebP Conversion**: Convert PNG, JPG, JPEG, GIF, BMP, TIFF to WebP
 - **Quality Control**: Adjustable quality slider (1-100)
 - **Lossless Mode**: Zero quality loss compression
 - **Batch Processing**: Convert multiple images at once
 - **Advanced Options**:
-  - Preserve or strip metadata (EXIF, location data)
-  - Maintain transparency (PNG/GIF alpha channels)
+  - Automatic transparency preservation (PNG/GIF alpha channels)
   - Auto-resize large images (>2048px) for web optimization
 - **Smart Compression**: Up to 80% size reduction
+- **No Size Limits**: Process large images without server timeouts
 
 ---
 
 ## 🏗️ Architecture
 
-### How It Works
+### How It Works - 100% Client-Side Processing
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -79,19 +83,23 @@ Your videos **never leave your computer**. Using WebAssembly-powered FFmpeg, all
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  IMAGE CONVERSION (Server-Side)                         │
+│  IMAGE CONVERSION (Client-Side)                         │
 │                                                          │
-│  Your Browser          →        Next.js Server          │
-│  ┌──────────────┐              ┌──────────────┐         │
-│  │ Upload image │  ───────→    │ Sharp library│         │
-│  │              │              │ processes &  │         │
-│  │ Download     │  ←───────    │ optimizes    │         │
-│  │ WebP image   │              │ to WebP      │         │
-│  └──────────────┘              └──────────────┘         │
+│  Your Browser                                            │
+│  ┌────────────────────────────────────────────┐         │
+│  │ 1. Select image file                       │         │
+│  │ 2. Canvas API processes image              │         │
+│  │ 3. Native WebP encoding in browser         │         │
+│  │ 4. Download WebP image                     │         │
+│  └────────────────────────────────────────────┘         │
 │                                                          │
-│  📤 Images sent to server for processing                │
-│  📥 Optimized WebP images returned                      │
+│  ✅ Image never leaves your computer                    │
+│  ✅ No server uploads or cloud processing               │
+│  ✅ Works offline after initial page load               │
 └─────────────────────────────────────────────────────────┘
+
+Both images and videos are processed entirely in your browser for
+complete privacy and security. No data is ever sent to any server!
 ```
 
 ---
@@ -108,12 +116,11 @@ Your videos **never leave your computer**. Using WebAssembly-powered FFmpeg, all
 ![Radix UI](https://img.shields.io/badge/Radix_UI-Primitives-black)
 
 ### Processing Engines
+- **Canvas API**: Native browser WebP encoding (no external dependencies!)
 - **FFmpeg.wasm** (v0.12.15): Browser-based video compression via WebAssembly
-- **Sharp** (v0.34.2): High-performance server-side image processing
 
 ### Key Dependencies
 - `@ffmpeg/ffmpeg`: WebAssembly FFmpeg for in-browser video processing
-- `sharp`: Fast Node.js image processing library
 - `@radix-ui/*`: Accessible component primitives
 - `lucide-react`: Modern icon library
 
@@ -126,7 +133,7 @@ Your videos **never leave your computer**. Using WebAssembly-powered FFmpeg, all
 - **Node.js** 18 or higher
 - **npm** or **yarn**
 
-**Note**: No FFmpeg installation required! Video compression uses FFmpeg.wasm which runs in the browser.
+**Note**: No FFmpeg or image processing library installation required! All processing uses browser-native APIs and FFmpeg.wasm.
 
 ### Installation
 
@@ -168,17 +175,19 @@ npm start
 2. Import repository on [Vercel](https://vercel.com)
 3. Deploy with default settings
 
-**✅ Video compression works perfectly on Vercel** (and any hosting platform) because it runs client-side in the browser, not on the server.
+**✅ Both image and video processing work perfectly on Vercel** (and any hosting platform) because everything runs client-side in the browser, not on the server!
 
 ### Environment Requirements
 
-**For Video Compression**:
-- Modern browser with SharedArrayBuffer support (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+**Browser Requirements**:
+- Modern browser with WebP support (Chrome 23+, Firefox 65+, Safari 14+, Edge 18+)
+- For video compression: SharedArrayBuffer support (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
 - COOP/COEP headers enabled (configured in `next.config.ts`)
 
-**For Image Conversion**:
-- Node.js runtime with Sharp support
-- Sufficient memory for image processing
+**Server Requirements**:
+- Minimal! Just serve the static Next.js app
+- No special image processing libraries needed
+- No FFmpeg installation required
 
 ### Docker (Optional)
 
@@ -197,72 +206,40 @@ EXPOSE 3000
 CMD ["npm", "start"]
 ```
 
-**Note**: No need to install FFmpeg in Docker - video processing is browser-based!
-
----
-
-## 🔌 API Routes
-
-### `/api/convert` - Image to WebP Conversion
-
-**Method**: POST
-**Content-Type**: multipart/form-data
-
-**Request Body** (FormData):
-```javascript
-{
-  files: File[],              // Image files to convert
-  quality: string,            // 1-100 (default: 80)
-  lossless: string,           // "true" | "false"
-  preserveMetadata: string,   // "true" | "false"
-  preserveTransparency: string, // "true" | "false"
-  autoResize: string          // "true" | "false"
-}
-```
-
-**Response**:
-```javascript
-{
-  results: [
-    {
-      webpData: string,    // Base64 encoded WebP image
-      webpSize: number     // File size in bytes
-    }
-  ]
-}
-```
+**Note**: No need to install FFmpeg or Sharp in Docker - all processing is browser-based!
 
 ---
 
 ## 🔒 Privacy & Security
 
-### Video Processing
-- **100% Browser-Based**: Videos processed entirely in your browser using FFmpeg.wasm
-- **Zero Server Upload**: Your videos never leave your device
-- **Offline-Capable**: After initial page load, can work without internet
-- **No Tracking**: No analytics on video processing
+### Complete Privacy Guarantee
+- **100% Browser-Based Processing**: ALL media (images and videos) processed entirely in your browser
+- **Zero Server Upload**: Your files never leave your device
+- **No Data Collection**: No tracking, no analytics, no logging
+- **Offline-Capable**: After initial page load, works without internet
+- **Open Source**: Transparent code you can audit
 
-### Image Processing
-- **Temporary Server Storage**: Images sent to Next.js API route for processing
-- **Immediate Deletion**: Files deleted from server after conversion
-- **No Persistence**: Images not stored or logged
-- **Secure Transfer**: HTTPS encryption for all uploads
+### How We Ensure Privacy
+- **Images**: Native Canvas API processes images directly in browser memory
+- **Videos**: FFmpeg.wasm (WebAssembly) runs locally without server communication
+- **No Backend API**: No server-side processing endpoints exist
+- **No Database**: No file storage or metadata collection
 
 ---
 
 ## 🌍 Browser Support
 
-| Browser | Minimum Version | Video Compression | Image Conversion |
-|---------|----------------|-------------------|------------------|
-| Chrome  | 90+            | ✅                | ✅               |
-| Firefox | 88+            | ✅                | ✅               |
+| Browser | Minimum Version | Image Conversion | Video Compression |
+|---------|----------------|------------------|-------------------|
+| Chrome  | 23+ (90+ for video) | ✅          | ✅                |
+| Firefox | 65+ (88+ for video) | ✅          | ✅                |
 | Safari  | 14+            | ✅                | ✅               |
-| Edge    | 90+            | ✅                | ✅               |
+| Edge    | 18+ (90+ for video) | ✅          | ✅                |
 
-**Requirements for Video Compression**:
-- SharedArrayBuffer support
-- WebAssembly support
-- COOP/COEP headers (automatically configured)
+**Requirements**:
+- **Image Conversion**: WebP support (all modern browsers)
+- **Video Compression**: SharedArrayBuffer + WebAssembly support
+- COOP/COEP headers (automatically configured in next.config.ts)
 
 ---
 
@@ -287,7 +264,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙏 Acknowledgments
 
 - **[FFmpeg.wasm](https://ffmpegwasm.netlify.app/)** - Browser-based video processing via WebAssembly
-- **[Sharp](https://sharp.pixelplumbing.com/)** - High-performance Node.js image processing
+- **[Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)** - Native browser image processing with WebP support
 - **[Radix UI](https://www.radix-ui.com/)** - Unstyled, accessible component primitives
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
 - **[Lucide](https://lucide.dev/)** - Beautiful & consistent icon toolkit
