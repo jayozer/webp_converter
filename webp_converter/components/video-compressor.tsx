@@ -219,54 +219,133 @@ export default function VideoCompressor() {
           )
         )
 
-        const inputName = 'input.mp4'
+        const inputName = `input-${file.id}.mp4`
         const outputName = `output.${targetFormat}`
+        const isWebM = targetFormat === 'webm'
+        const tempFiles: string[] = []
 
         try {
           // Write file to virtual file system
           const fileData = await fetchFile(file.file)
           await ffmpeg.writeFile(inputName, fileData)
 
-          // Build ffmpeg CLI args
-          const args: string[] = ['-i', inputName]
+          const baseArgs: string[] = ['-i', inputName, '-map', '0:v:0']
 
-          // codec selection
           switch (targetFormat) {
-            case 'webm':
-              args.push('-c:v', 'libvpx-vp9')
+            case 'webm': {
+              baseArgs.push(
+                '-c:v',
+                'libvpx',
+                '-quality',
+                'good',
+                '-deadline',
+                'realtime',
+                '-cpu-used',
+                '4'
+              )
               break
-            case 'mov':
-              args.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p')
+            }
+            case 'mov': {
+              baseArgs.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p')
               break
-            default:
-              args.push('-c:v', 'libx264')
+            }
+            default: {
+              baseArgs.push('-c:v', 'libx264')
               break
+            }
           }
 
-          args.push('-b:v', `${bitrate}k`)
+          baseArgs.push('-b:v', `${bitrate}k`)
+          baseArgs.push(
+            '-vf',
+            maintainResolution
+              ? 'format=yuv420p'
+              : 'scale=-2:720:flags=lanczos,format=yuv420p'
+          )
+          baseArgs.push('-pix_fmt', 'yuv420p', '-sn', '-dn', '-map_metadata', '-1')
 
-          if (!maintainResolution) {
-            args.push('-vf', 'scale=-2:720')
+          if (!isWebM) {
+            baseArgs.push('-preset', 'medium')
           }
 
-          if (removeAudio) {
-            args.push('-an')
+          baseArgs.push('-crf', '23')
+
+          if (!isWebM) {
+            baseArgs.push('-movflags', '+faststart')
+          }
+
+          if (isWebM && !removeAudio) {
+            const videoTempName = `video-${file.id}.webm`
+            const audioTempName = `audio-${file.id}.opus`
+            tempFiles.push(videoTempName, audioTempName)
+
+            await ffmpeg.exec([...baseArgs, '-an', videoTempName])
+
+            await ffmpeg.exec([
+              '-i',
+              inputName,
+              '-map',
+              '0:a:0',
+              '-vn',
+              '-sn',
+              '-dn',
+              '-map_metadata',
+              '-1',
+              '-c:a',
+              'libopus',
+              '-b:a',
+              '64k',
+              '-ac',
+              '1',
+              '-ar',
+              '48000',
+              audioTempName,
+            ])
+
+            await ffmpeg.exec([
+              '-i',
+              videoTempName,
+              '-i',
+              audioTempName,
+              '-map',
+              '0:v:0',
+              '-map',
+              '1:a:0',
+              '-c',
+              'copy',
+              outputName,
+            ])
           } else {
-            args.push('-c:a', 'aac', '-b:a', '128k')
+            const finalArgs = [...baseArgs]
+
+            if (removeAudio) {
+              finalArgs.push('-an')
+            } else {
+              finalArgs.push('-map', '0:a:0')
+              if (isWebM) {
+                finalArgs.push(
+                  '-c:a',
+                  'libopus',
+                  '-b:a',
+                  '64k',
+                  '-ac',
+                  '1',
+                  '-ar',
+                  '48000'
+                )
+              } else {
+                finalArgs.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '48000')
+              }
+            }
+
+            finalArgs.push(outputName)
+
+            await ffmpeg.exec(finalArgs)
           }
 
-          args.push('-preset', 'medium', '-crf', '23', '-movflags', '+faststart', outputName)
-
-          // Execute FFmpeg command
-          await ffmpeg.exec(args)
-
-          // Read output file
           const outputData = await ffmpeg.readFile(outputName)
-          // Convert FileData to a format compatible with Blob constructor
-          // FFmpeg.wasm returns a Uint8Array, but TypeScript needs proper typing
           const blob = new Blob([outputData as BlobPart], { type: `video/${targetFormat}` })
 
-          // Record results
           setFiles((prev) =>
             prev.map((f) => {
               if (f.id === file.id) {
@@ -282,10 +361,6 @@ export default function VideoCompressor() {
               return f
             })
           )
-
-          // Clean up virtual file system
-          await ffmpeg.deleteFile(inputName)
-          await ffmpeg.deleteFile(outputName)
         } catch (error) {
           console.error('Compression error:', error)
           setFiles((prev) =>
@@ -293,6 +368,24 @@ export default function VideoCompressor() {
               f.id === file.id ? { ...f, status: 'failed' as const, error: 'Compression failed', progress: 0 } : f
             )
           )
+        } finally {
+          try {
+            await ffmpeg.deleteFile(inputName)
+          } catch {
+            // ignore cleanup errors
+          }
+          try {
+            await ffmpeg.deleteFile(outputName)
+          } catch {
+            // ignore cleanup errors
+          }
+          for (const temp of tempFiles) {
+            try {
+              await ffmpeg.deleteFile(temp)
+            } catch {
+              // ignore cleanup errors
+            }
+          }
         }
       }
     } catch (error) {
