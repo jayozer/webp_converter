@@ -231,11 +231,13 @@ export default function VideoCompressor() {
           // Build format-specific encoding args (single-pass for all formats)
           const args: string[] = ['-i', inputName]
 
-          // Video codec
+          // Video codec — CRF-only mode for both formats so presets actually control quality
+          // Map bitrate presets (300–10000) to codec CRF via log scale
+          const presetRatio = Math.log(bitrate / 300) / Math.log(10000 / 300) // 0→1
+
           if (targetFormat === 'webm') {
-            // VP8 constant quality mode: map bitrate presets to CRF values
-            // Bitrate 300 (Ultra Low) → CRF 50, Bitrate 10000 (Ultra) → CRF 10
-            const vpxCrf = Math.round(50 - (Math.log(bitrate / 300) / Math.log(10000 / 300)) * 40)
+            // VP8 CRF range 4–63: Ultra Low → 50, Ultra → 10
+            const vpxCrf = Math.round(50 - presetRatio * 40)
             args.push(
               '-c:v', 'libvpx',
               '-crf', String(vpxCrf),
@@ -244,11 +246,12 @@ export default function VideoCompressor() {
               '-cpu-used', '5',
             )
           } else {
+            // H.264 CRF range 0–51: Ultra Low → 36, Ultra → 14
+            const x264Crf = Math.round(36 - presetRatio * 22)
             args.push(
               '-c:v', 'libx264',
               '-preset', 'medium',
-              '-crf', '23',
-              '-b:v', `${bitrate}k`,
+              '-crf', String(x264Crf),
             )
           }
 
