@@ -233,9 +233,13 @@ export default function VideoCompressor() {
 
           // Video codec
           if (targetFormat === 'webm') {
+            // VP8 constant quality mode: map bitrate presets to CRF values
+            // Bitrate 300 (Ultra Low) → CRF 50, Bitrate 10000 (Ultra) → CRF 10
+            const vpxCrf = Math.round(50 - (Math.log(bitrate / 300) / Math.log(10000 / 300)) * 40)
             args.push(
               '-c:v', 'libvpx',
-              '-b:v', `${bitrate}k`,
+              '-crf', String(vpxCrf),
+              '-b:v', '0',
               '-deadline', 'good',
               '-cpu-used', '5',
             )
