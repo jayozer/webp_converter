@@ -122,32 +122,33 @@ const convertImageToWebP = (file: File): Promise<Blob> => {
 
 **Codec Configurations**:
 ```typescript
-// WebM: VP8 video + Opus audio
-'-c:v', 'libvpx', '-quality', 'good', '-deadline', 'realtime'
+// WebM: VP8 video (constrained quality) + Opus audio
+'-c:v', 'libvpx', '-b:v', `${bitrate}k`, '-crf', '10',
+'-deadline', 'realtime', '-cpu-used', '4'
 '-c:a', 'libopus', '-b:a', '64k', '-ac', '1'
 
 // MP4/MOV: H.264 video + AAC audio
-'-c:v', 'libx264', '-preset', 'medium', '-crf', '23'
+'-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-b:v', `${bitrate}k`
 '-c:a', 'aac', '-b:a', '128k', '-ac', '2'
 ```
 
-**WebM Multi-Pass Encoding** (when audio present):
-1. Extract and encode video stream → `video-{id}.webm`
-2. Extract and encode audio stream → `audio-{id}.opus`
-3. Merge streams → final output
-4. Cleanup temp files in `finally` block
+**Single-Pass Encoding** (all formats use single-pass):
+- All formats (MP4, WebM, MOV) use single-pass encoding
+- Audio stream mapping is implicit (FFmpeg auto-selects if present, skips if absent)
+- Exit code of `ffmpeg.exec()` is checked; non-zero throws an error
 
 **FFmpeg Virtual Filesystem Pattern**:
 ```typescript
-// Write input to virtual FS
-await ffmpeg.writeFile(`input-${file.id}.mp4`, fileData)
+// Write input to virtual FS (preserves original extension for format detection)
+await ffmpeg.writeFile(`input-${file.id}.${ext}`, fileData)
 
-// Execute compression
-await ffmpeg.exec([...args, 'output.webm'])
+// Execute compression and check exit code
+const exitCode = await ffmpeg.exec(args)
+if (exitCode !== 0) throw new Error(`FFmpeg exited with code ${exitCode}`)
 
 // Read output from virtual FS
-const outputData = await ffmpeg.readFile('output.webm')
-const blob = new Blob([outputData], { type: 'video/webm' })
+const outputData = await ffmpeg.readFile(outputName)
+const blob = new Blob([outputData], { type: `video/${targetFormat}` })
 
 // Always cleanup (even on error)
 finally {

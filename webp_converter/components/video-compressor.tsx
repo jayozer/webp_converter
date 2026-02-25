@@ -219,128 +219,66 @@ export default function VideoCompressor() {
           )
         )
 
-        const inputName = `input-${file.id}.mp4`
-        const outputName = `output.${targetFormat}`
-        const isWebM = targetFormat === 'webm'
-        const tempFiles: string[] = []
+        const ext = file.file.name.split('.').pop() || 'mp4'
+        const inputName = `input-${file.id}.${ext}`
+        const outputName = `output-${file.id}.${targetFormat}`
 
         try {
           // Write file to virtual file system
           const fileData = await fetchFile(file.file)
           await ffmpeg.writeFile(inputName, fileData)
 
-          const baseArgs: string[] = ['-i', inputName, '-map', '0:v:0']
+          // Build format-specific encoding args (single-pass for all formats)
+          const args: string[] = ['-i', inputName]
 
-          switch (targetFormat) {
-            case 'webm': {
-              baseArgs.push(
-                '-c:v',
-                'libvpx',
-                '-quality',
-                'good',
-                '-deadline',
-                'realtime',
-                '-cpu-used',
-                '4'
-              )
-              break
-            }
-            case 'mov': {
-              baseArgs.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p')
-              break
-            }
-            default: {
-              baseArgs.push('-c:v', 'libx264')
-              break
-            }
+          // Video codec
+          if (targetFormat === 'webm') {
+            args.push(
+              '-c:v', 'libvpx',
+              '-b:v', `${bitrate}k`,
+              '-crf', '10',
+              '-deadline', 'realtime',
+              '-cpu-used', '4',
+            )
+          } else {
+            args.push(
+              '-c:v', 'libx264',
+              '-preset', 'medium',
+              '-crf', '23',
+              '-b:v', `${bitrate}k`,
+            )
           }
 
-          baseArgs.push('-b:v', `${bitrate}k`)
-          baseArgs.push(
+          // Video filter (resolution + pixel format conversion)
+          args.push(
             '-vf',
             maintainResolution
               ? 'format=yuv420p'
-              : 'scale=-2:720:flags=lanczos,format=yuv420p'
+              : 'scale=-2:720:flags=lanczos,format=yuv420p',
           )
-          baseArgs.push('-pix_fmt', 'yuv420p', '-sn', '-dn', '-map_metadata', '-1')
 
-          if (!isWebM) {
-            baseArgs.push('-preset', 'medium')
-          }
-
-          baseArgs.push('-crf', '23')
-
-          if (!isWebM) {
-            baseArgs.push('-movflags', '+faststart')
-          }
-
-          if (isWebM && !removeAudio) {
-            const videoTempName = `video-${file.id}.webm`
-            const audioTempName = `audio-${file.id}.opus`
-            tempFiles.push(videoTempName, audioTempName)
-
-            await ffmpeg.exec([...baseArgs, '-an', videoTempName])
-
-            await ffmpeg.exec([
-              '-i',
-              inputName,
-              '-map',
-              '0:a:0',
-              '-vn',
-              '-sn',
-              '-dn',
-              '-map_metadata',
-              '-1',
-              '-c:a',
-              'libopus',
-              '-b:a',
-              '64k',
-              '-ac',
-              '1',
-              '-ar',
-              '48000',
-              audioTempName,
-            ])
-
-            await ffmpeg.exec([
-              '-i',
-              videoTempName,
-              '-i',
-              audioTempName,
-              '-map',
-              '0:v:0',
-              '-map',
-              '1:a:0',
-              '-c',
-              'copy',
-              outputName,
-            ])
+          // Audio codec (omitting -map lets FFmpeg skip audio gracefully if none exists)
+          if (removeAudio) {
+            args.push('-an')
+          } else if (targetFormat === 'webm') {
+            args.push('-c:a', 'libopus', '-b:a', '64k', '-ac', '1', '-ar', '48000')
           } else {
-            const finalArgs = [...baseArgs]
+            args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '48000')
+          }
 
-            if (removeAudio) {
-              finalArgs.push('-an')
-            } else {
-              finalArgs.push('-map', '0:a:0')
-              if (isWebM) {
-                finalArgs.push(
-                  '-c:a',
-                  'libopus',
-                  '-b:a',
-                  '64k',
-                  '-ac',
-                  '1',
-                  '-ar',
-                  '48000'
-                )
-              } else {
-                finalArgs.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '48000')
-              }
-            }
+          // Strip subtitles, data streams, and metadata
+          args.push('-sn', '-dn', '-map_metadata', '-1')
 
-            finalArgs.push(outputName)
+          // Container-specific flags
+          if (targetFormat !== 'webm') {
+            args.push('-movflags', '+faststart')
+          }
 
-            await ffmpeg.exec(finalArgs)
+          args.push(outputName)
+
+          const exitCode = await ffmpeg.exec(args)
+          if (exitCode !== 0) {
+            throw new Error(`FFmpeg exited with code ${exitCode}. Check browser console for details.`)
           }
 
           const outputData = await ffmpeg.readFile(outputName)
@@ -362,36 +300,23 @@ export default function VideoCompressor() {
             })
           )
         } catch (error) {
-          console.error('Compression error:', error)
+          const msg = error instanceof Error ? error.message : 'Compression failed'
+          console.error(`Compression error for ${file.name}:`, error)
           setFiles((prev) =>
             prev.map((f) =>
-              f.id === file.id ? { ...f, status: 'failed' as const, error: 'Compression failed', progress: 0 } : f
+              f.id === file.id ? { ...f, status: 'failed' as const, error: msg, progress: 0 } : f
             )
           )
         } finally {
-          try {
-            await ffmpeg.deleteFile(inputName)
-          } catch {
-            // ignore cleanup errors
-          }
-          try {
-            await ffmpeg.deleteFile(outputName)
-          } catch {
-            // ignore cleanup errors
-          }
-          for (const temp of tempFiles) {
-            try {
-              await ffmpeg.deleteFile(temp)
-            } catch {
-              // ignore cleanup errors
-            }
-          }
+          try { await ffmpeg.deleteFile(inputName) } catch { /* ignore */ }
+          try { await ffmpeg.deleteFile(outputName) } catch { /* ignore */ }
         }
       }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to load FFmpeg'
       console.error('Failed to load FFmpeg:', error)
       setFiles((prev) =>
-        prev.map((f) => ({ ...f, status: 'failed' as const, error: 'Failed to load FFmpeg', progress: 0 }))
+        prev.map((f) => ({ ...f, status: 'failed' as const, error: msg, progress: 0 }))
       )
     }
 
