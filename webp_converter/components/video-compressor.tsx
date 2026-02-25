@@ -236,9 +236,8 @@ export default function VideoCompressor() {
             args.push(
               '-c:v', 'libvpx',
               '-b:v', `${bitrate}k`,
-              '-crf', '10',
-              '-deadline', 'realtime',
-              '-cpu-used', '4',
+              '-deadline', 'good',
+              '-cpu-used', '5',
             )
           } else {
             args.push(
@@ -577,9 +576,11 @@ export default function VideoCompressor() {
             ) : (
               <div className="space-y-4">
                 {/* Summary */}
-                <div className="bg-emerald-50 p-4 rounded-lg">
-                  <p className="text-sm text-emerald-800">
-                    Successfully compressed {completedFiles.length} video(s) with {totalReduction}% average reduction
+                <div className={`p-4 rounded-lg ${totalReduction > 0 ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+                  <p className={`text-sm ${totalReduction > 0 ? 'text-emerald-800' : 'text-amber-800'}`}>
+                    {totalReduction > 0
+                      ? `Successfully compressed ${completedFiles.length} video(s) with ${totalReduction}% average reduction`
+                      : `Processed ${completedFiles.length} video(s) — output is ${Math.abs(totalReduction)}% larger. Try a lower bitrate preset.`}
                   </p>
                 </div>
 
@@ -593,7 +594,9 @@ export default function VideoCompressor() {
                           <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                             {file.duration && <span>{formatDuration(file.duration)}</span>}
                             {file.resolution && <span>{file.resolution}</span>}
-                            <span className="text-emerald-600">-{file.reduction}%</span>
+                            <span className={file.reduction && file.reduction > 0 ? "text-emerald-600" : "text-red-600"}>
+                              {file.reduction && file.reduction > 0 ? `-${file.reduction}%` : `+${Math.abs(file.reduction || 0)}%`}
+                            </span>
                           </div>
                         </div>
                         <Button
